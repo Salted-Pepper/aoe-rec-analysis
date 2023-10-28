@@ -1,3 +1,4 @@
+import numpy as np
 from mgz.model import parse_match, serialize
 import copy
 import pandas as pd
@@ -96,6 +97,11 @@ def make_data_from_replays(replays: list, list_of_actions: list) -> pd.DataFrame
     for replay in replays:
         dict_list.extend(extract_data(match_data=load_replay_data(replay), list_of_actions=list_of_actions))
     data = pd.DataFrame.from_dict(dict_list)
+
+    time_columns = [c for c in data.columns if "time" in c]
+    for col in time_columns:
+        data[col] = data[col].astype('str').str.split(".").str[0]
+        data[col] = pd.to_datetime(data[col], format="%H:%M:%S")
     set_end_age(data)
     return data
 
@@ -137,3 +143,11 @@ def set_end_age(df):
             match_ends = "dark"
 
         df.loc[df["match_id"] == match_id, ['end_age']] = match_ends
+
+
+def fetch_latest_time(df: pd.DataFrame, age: str):
+    age_columns = [c for c in df.columns if age in c]
+    # df.
+    max_time = df[age_columns].max(axis=1).max(axis=0)
+
+    return max_time
