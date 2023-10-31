@@ -51,7 +51,7 @@ def calculate_monk_data(data: pd.DataFrame):
                                          bins=np.arange(0, max_monks_added))
         axes_monks_map[row, column].set_title(location)
         axes_monks_map[row, column].set_xticks(np.arange(0, max_monks_added, 10))
-        axes_monks_map.set_minor_locator(MultipleLocator(5))
+        axes_monks_map[row, column].xaxis.set_minor_locator(MultipleLocator(5))
         if row == max_rows:
             axes_monks_map[row, column].set_xlabel("Queued Monks")
         if column == 0:
