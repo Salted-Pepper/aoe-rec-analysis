@@ -1,7 +1,9 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from mgz.model import parse_match, serialize
-import copy
 import pandas as pd
+import datetime
+
 from players import Player
 
 unique_match_id = 0
@@ -20,7 +22,6 @@ def extract_data(match_data: dict, list_of_actions: list) -> list:
     :return:
     """
     global unique_match_id
-    unique_match_id += 1
     print(f"\n\nExtracting data from match {unique_match_id}.")
 
     players = []
@@ -82,6 +83,7 @@ def extract_data(match_data: dict, list_of_actions: list) -> list:
             action[f'p_{index+1}_castle_time'] = player.castle_time
             action[f'p_{index+1}_imp_time'] = player.imp_time
 
+    unique_match_id += 1
     return action_data
 
 
@@ -101,7 +103,7 @@ def make_data_from_replays(replays: list, list_of_actions: list) -> pd.DataFrame
     time_columns = [c for c in data.columns if "time" in c]
     for col in time_columns:
         data[col] = data[col].astype('str').str.split(".").str[0]
-        data[col] = pd.to_datetime(data[col], format="%H:%M:%S")
+        data[col] = pd.to_timedelta(data[col])
     set_end_age(data)
     return data
 
@@ -142,12 +144,72 @@ def set_end_age(df):
         else:
             match_ends = "dark"
 
-        df.loc[df["match_id"] == match_id, ['end_age']] = match_ends
+        df.loc[df['match_id'] == match_id, ['end_age']] = match_ends
 
 
 def fetch_latest_time(df: pd.DataFrame, age: str):
     age_columns = [c for c in df.columns if age in c]
-    # df.
     max_time = df[age_columns].max(axis=1).max(axis=0)
 
     return max_time
+
+
+def create_figure_grid_for_maps(maps: list) -> (plt.Figure, plt.Axes, int, int):
+    grid_size = int(np.ceil(np.sqrt(len(maps))))
+
+    if grid_size * (grid_size - 1) >= len(maps):
+        fig, axes = plt.subplots(grid_size, grid_size - 1, figsize=(8, 8))
+        max_rows = grid_size - 1
+    else:
+        fig, axes = plt.subplots(grid_size, grid_size, figsize=(8, 8))
+        max_rows = grid_size
+    return fig, axes, grid_size, max_rows
+
+
+def calc_items_made_per_match(item: str, df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Creates a dataframe with information on how many times each building has been made per map per player
+    :param item:
+    :param df:
+    :return: dataframe
+    """
+    df_building = df[df["value"] == item]
+    data_by_map = df_building.groupby(["map", "match_id", "player"])["value"].count().reset_index()
+
+    entries_to_append = []
+
+    for i in range(max(df['match_id']) + 1):
+        entries = len(data_by_map[data_by_map['match_id'] == i])
+        try:
+            players = df[df['match_id'] == i].reset_index().iloc[0]['players']
+        except IndexError:
+
+            raise IndexError(df[df['match_id'] == i].reset_index(), i)
+        if entries == len(players):
+            continue
+        else:
+            worldmap = df[df['match_id'] == i].reset_index().iloc[0]['map']
+            for player in players:
+                if player not in data_by_map['player']:
+                    entries_to_append.append({'map': worldmap,
+                                              'match_id': i,
+                                              'player': player,
+                                              'value': 0})
+
+    data_to_append = pd.DataFrame(entries_to_append)
+
+    return pd.concat([data_by_map, data_to_append])
+
+
+def make_minutes_out_of_time(times: list) -> list:
+    new_times = []
+    for index, time in enumerate(times):
+        if isinstance(time, pd.Timestamp):
+            new_times.append(time.minute + time.hour * 60 + time.second / 60)
+        elif isinstance(time, datetime.timedelta):
+            new_times.append(time.total_seconds()/60)
+        elif isinstance(time, np.timedelta64):
+            new_times.append(float((time / np.timedelta64(1, 's')) / 60))
+        else:
+            raise TypeError(f"Can't make time out of {time} with type {type(time)}")
+    return new_times
